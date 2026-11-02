@@ -11,7 +11,7 @@ nothing has been pushed, and no image has been built anywhere.
 
 | File | Purpose |
 | --- | --- |
-| `Dockerfile` | Builds the image: alpine base, pinned sing-box release binary, cf-probe binary copied from the upstream agent image, entrypoint. |
+| `Dockerfile` | Builds the image: Ubuntu 24.04 base (glibc, required by the dynamically linked sing-box binary; Alpine/musl fails with exit 127), pinned sing-box release binary, cf-probe binary copied from the upstream agent image, entrypoint. |
 | `entrypoint.sh` | Container start: renders configs from environment variables, validates with `sing-box check`, starts both processes, supervises them. |
 | `compose.yml` | What Cloady reads: one service, two ports, resource limits. This file is the Cloady source definition. |
 | `.github/workflows/docker-publish.yml` | GitHub Actions build -> GHCR, SHA tag only. |

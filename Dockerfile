@@ -20,12 +20,16 @@ ARG SING_BOX_VERSION=1.14.4
 
 FROM ghcr.io/huilang-me/cfsm-agent:latest AS agent
 
-FROM alpine:3.21
+# sing-box 1.14.4 release binary is dynamically linked against glibc
+# (interpreter /lib64/ld-linux-x86-64.so.2). On Alpine/musl that loader
+# is missing, so `sing-box version` fails with exit 127. Use Ubuntu 24.04
+# (glibc), where the same binary was verified to run.
+FROM ubuntu:24.04
 
 ARG SING_BOX_VERSION
 ARG TARGETARCH
 
-RUN apk add --no-cache ca-certificates openssl jq curl
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl jq curl && rm -rf /var/lib/apt/lists/*
 
 # cf-probe binary, copied from the upstream agent image (path verified upstream).
 COPY --from=agent /app/cf-probe /usr/local/bin/cf-probe
@@ -44,6 +48,7 @@ RUN set -eux; \
     "https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box-${SING_BOX_VERSION}-linux-${SB_ARCH}.tar.gz"; \
   tar -xzf /tmp/sing-box.tar.gz -C /tmp; \
   cp "/tmp/sing-box-${SING_BOX_VERSION}-linux-${SB_ARCH}/sing-box" /usr/local/bin/sing-box; \
+  if [ -f "/tmp/sing-box-${SING_BOX_VERSION}-linux-${SB_ARCH}/libcronet.so" ]; then cp "/tmp/sing-box-${SING_BOX_VERSION}-linux-${SB_ARCH}/libcronet.so" /usr/local/bin/libcronet.so; fi; \
   chmod 755 /usr/local/bin/sing-box /usr/local/bin/cf-probe; \
   rm -rf /tmp/sing-box.tar.gz "/tmp/sing-box-${SING_BOX_VERSION}-linux-${SB_ARCH}"; \
   sing-box version
