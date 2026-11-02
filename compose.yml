@@ -1,0 +1,49 @@
+# Cloady compose definition for the sing-box app.
+#
+# How Cloady reads this file (per Cloady Core Concepts docs, verified 2026-11-02):
+#   - A GitHub repo is deployed from the compose file in its root directory.
+#   - The app has ONE public hostname, answered by its primary endpoint:
+#     the first HTTP endpoint declared, or the first TCP endpoint if none.
+#   - A TCP/UDP port published alongside a website is connected to using
+#     the IPv6 address shown on the app's page.
+#   - A GitHub + compose app picks up changes to this file on each deploy.
+#
+# Port order matters. Do NOT reorder the two entries below:
+#   1. "8080:8080"       -> first entry, HTTP primary endpoint (VLESS + WebSocket).
+#                          Published as the app's https hostname by Cloady ingress
+#                          (ingress terminates TLS; sing-box itself serves plain WS).
+#   2. "50000:50000/udp" -> second entry, raw UDP endpoint (TUIC).
+#                          No public IPv4; connect via the IPv6 address on the app page.
+#
+# No `environment:` section here on purpose: secrets are set in the Cloady
+# panel (App Settings -> Environment, marked secret) and are injected into
+# the container by Cloady. Never write a secret, UUID or password in this file.
+#
+# No `volumes:` section on purpose: the entry script regenerates both
+# sing-box config and probe config from environment variables on every
+# start. Trade-off: probe traffic state is not persisted across restarts
+# (server-side history in the monitor is unaffected).
+#
+# Image tag: replace `sha-PLACEHOLDER` with the full commit-SHA tag produced
+# by the GitHub Actions run (for example sha-<40-hex>). Never deploy `latest`
+# or any other moving tag. Updating only this tag does NOT rebuild the image
+# (the workflow's path filter excludes compose.yml); it triggers a Cloady
+# redeploy of the already-built image.
+#
+# Resource limits: declared here, multiplied by the panel scale (default 1x).
+# After the hello test app was deleted the workspace is empty, so
+# 0.50 vCPU / 512M fits the free allowance on its own. If the panel ever
+# reports payment_required at creation, lower these values or scale to 0.5x
+# before retrying; do not add a card to force it through.
+
+services:
+  sing-box:
+    image: ghcr.io/revoke0699/cloady-sing-box:sha-PLACEHOLDER
+    ports:
+      - "8080:8080"
+      - "50000:50000/udp"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M

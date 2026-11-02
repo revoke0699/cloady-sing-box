@@ -1,0 +1,64 @@
+name: Build and publish image
+
+# Builds the sing-box + cf-probe image in GitHub Actions and pushes it to
+# GHCR. Nothing is built locally or in any sandbox; this workflow is the
+# only build path.
+#
+# Trigger notes:
+#   - Pushes to main that touch Dockerfile, entrypoint.sh or this workflow
+#     rebuild the image.
+#   - Changing only compose.yml (for example to point at a new image SHA tag)
+#     does NOT rebuild the image; it is meant to trigger a Cloady redeploy.
+#   - workflow_dispatch allows a manual rebuild without a code change.
+#
+# Tagging rule (strict):
+#   - The ONLY tag pushed is sha-<full commit SHA>.
+#   - No `latest` and no other moving tag is ever pushed or deployed.
+#   - Cloady deploys exactly the tag named in compose.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - .github/workflows/docker-publish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate compose syntax (no build, no push)
+        run: docker compose -f compose.yml config -q
+
+      - name: Build and push (pinned SHA tag only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/cloady-sing-box:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
