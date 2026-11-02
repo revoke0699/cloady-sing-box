@@ -38,7 +38,7 @@
 
 services:
   sing-box:
-    image: ghcr.io/revoke0699/cloady-sing-box:sha-PLACEHOLDER
+    image: ghcr.io/revoke0699/cloady-sing-box:sha-6ffda6a0e902b9470d472ba0c90cb22524039061
     ports:
       - "8080:8080"
       - "50000:50000/udp"
