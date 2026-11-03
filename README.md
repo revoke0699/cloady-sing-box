@@ -1,18 +1,20 @@
-# cloady-sing-box (DRAFT — not pushed, not built)
+# cloady-sing-box (v2: two-variable config)
 
 Single-container image for Cloady that runs **sing-box** (proxy node) and
 **cf-probe** (CF Server Monitor agent) together, built only by GitHub
 Actions and deployed to Cloady pinned by commit SHA.
 
-Status of this draft: local files only. No repository has been created,
-nothing has been pushed, and no image has been built anywhere.
+Status: deployed on Cloady (app `cloady-sing-box`, Japan JPN1). Config
+arrives as two panel variables (see "Environment variables"): the full
+sing-box JSON and the full probe config. Nothing secret lives in this
+repo or the image.
 
 ## What is in this repo
 
 | File | Purpose |
 | --- | --- |
 | `Dockerfile` | Builds the image: Ubuntu 24.04 base (glibc, required by the dynamically linked sing-box binary; Alpine/musl fails with exit 127), pinned sing-box release binary, cf-probe binary copied from the upstream agent image, entrypoint. |
-| `entrypoint.sh` | Container start: renders configs from environment variables, validates with `sing-box check`, starts both processes, supervises them. |
+| `entrypoint.sh` | Container start: writes the two pasted configs to disk, validates with `sing-box check`, starts both processes, supervises them. |
 | `compose.yml` | What Cloady reads: one service, two ports, resource limits. This file is the Cloady source definition. |
 | `.github/workflows/docker-publish.yml` | GitHub Actions build -> GHCR, SHA tag only. |
 | `.dockerignore` | Keeps the build context small. |
@@ -76,28 +78,24 @@ Secrets are NEVER written in this repo, in the image, or in chat logs.
 Set them in Cloady App Settings -> Environment (secret values are
 encrypted and hidden after saving).
 
-| Variable | Required | Default | Notes |
-| --- | --- | --- | --- |
-| `VLESS_UUID` | Yes | — | UUID for the VLESS + WebSocket user. |
-| `WS_PATH` | Yes | — | WebSocket path for the VLESS inbound. |
-| `WS_PORT` | No | `8080` | Must match the first compose port's container port. |
-| `TUIC_UUID` | Yes | — | UUID for the TUIC user (may reuse the VLESS UUID, kept separate here). |
-| `TUIC_PASSWORD` | Yes | — | Password for the TUIC user. |
-| `TUIC_PORT` | No | `50000` | Must match the second compose port's container port. |
-| `SERVER_ID` | Yes | — | Probe server ID from the monitor admin (already created). |
-| `SECRET` | Yes | — | Probe reporting secret (matches the Worker secret). |
-| `WORKER_URL` | Yes | — | Probe reporting URL, ending in `/update`. |
-| `LOG_LEVEL` | No | `warn` | sing-box log level (`warn` keeps logs small). |
-| `COLLECT_INTERVAL` | No | `0` | Probe sampling interval; `0` disables extra sampling. |
-| `REPORT_INTERVAL` | No | `60` | Probe reporting interval in seconds. |
-| `CONNECTION_MODE` | No | `auto` | Probe connection mode (`auto` prefers WSS, falls back to POST). |
-| `PING_MODE` | No | `tcp` | Probe ping mode (`tcp` needs no extra capability; `icmp` needs NET_RAW). |
-| `TUIC_CERT_B64` | No | — | Optional stable TUIC certificate (base64 PEM). If unset, a self-signed certificate is generated on every start. |
-| `TUIC_KEY_B64` | No | — | Optional stable TUIC key (base64 PEM), paired with the above. |
+v2 takes exactly two configs. The old per-field variables (`VLESS_UUID`,
+`WS_PATH`, `TUIC_UUID`, `TUIC_PASSWORD`, `SERVER_ID`, `SECRET`,
+`WORKER_URL`, `WS_PORT`, `TUIC_PORT`, `LOG_LEVEL`,
+`COLLECT_INTERVAL`, `REPORT_INTERVAL`, `CONNECTION_MODE`, `PING_MODE`)
+are ignored by this version, so leaving them in the panel is harmless.
 
-Value constraints: `SECRET` and passwords must not contain a double
-quote, backslash or newline (the probe config format has no escaping).
-UUIDs are hex plus hyphens and are safe.
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `SING_BOX_CONFIG` | Yes | Full sing-box `config.json` content (JSON, multi-line). Must listen on 8080 for VLESS+WS and 50000/udp for TUIC, and reference `/etc/sing-box/cert.pem` + `/etc/sing-box/key.pem` for TUIC TLS. |
+| `PROBE_CONFIG` | Yes | Full cf-probe `config.conf` content (`KEY="value"` lines, upstream container format). Must include `SERVER_ID`, `SECRET`, `WORKER_URL` (ending in `/update`) and `AUTO_UPDATE="0"`. |
+| `SING_BOX_CONFIG_B64` | No | Base64 of the sing-box config. Fallback if the panel mangles multi-line values; wins over `SING_BOX_CONFIG` when both are set. |
+| `PROBE_CONFIG_B64` | No | Base64 of the probe config. Same fallback rule. |
+| `TUIC_CERT_B64` | No | Optional stable TUIC certificate (base64 PEM). If unset, a self-signed certificate is generated on every start. |
+| `TUIC_KEY_B64` | No | Optional stable TUIC key (base64 PEM), paired with the above. |
+
+Value constraints: values inside `PROBE_CONFIG` must not contain a
+double quote, backslash or newline (the probe config format has no
+escaping). UUIDs are hex plus hyphens and are safe.
 
 TUIC TLS identity trade-off: with no caller-provided certificate, the
 container generates an ephemeral self-signed certificate on every start,
