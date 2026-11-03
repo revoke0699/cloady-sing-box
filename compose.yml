@@ -1,4 +1,4 @@
-# Cloady compose definition for the sing-box app.
+# Cloady compose definition for the web-01 app.
 #
 # How Cloady reads this file (per Cloady Core Concepts docs, verified 2026-11-02):
 #   - A GitHub repo is deployed from the compose file in its root directory.
@@ -19,10 +19,14 @@
 # panel (App Settings -> Environment, marked secret) and are injected into
 # the container by Cloady. Never write a secret, UUID or password in this file.
 #
-# No `volumes:` section on purpose: the entry script regenerates both
-# sing-box config and probe config from environment variables on every
-# start. Trade-off: probe traffic state is not persisted across restarts
-# (server-side history in the monitor is unaffected).
+# One volume on purpose: `appdata` mounted at /data holds the entrypoint's
+# persistent state (auto-generated sing-box config, TUIC certificate,
+# probe config, node links). Without it, a regenerated config would change
+# on every restart and orphan the node links. Whether Cloady provisions a
+# compose-declared volume for an already-created app is verified by the
+# persistence test (deploy, read links, redeploy, links must be unchanged);
+# if it does not persist, recreate the app so the volume is provisioned
+# at creation time.
 #
 # Image tag: replace `sha-PLACEHOLDER` with the full commit-SHA tag produced
 # by the GitHub Actions run (for example sha-<40-hex>). Never deploy `latest`
@@ -42,8 +46,13 @@ services:
     ports:
       - "8080:8080"
       - "50000:50000/udp"
+    volumes:
+      - appdata:/data
     deploy:
       resources:
         limits:
           cpus: "0.50"
           memory: 512M
+
+volumes:
+  appdata:

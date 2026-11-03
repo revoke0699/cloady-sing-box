@@ -4,10 +4,11 @@ Single-container image for Cloady that runs **sing-box** (proxy node) and
 **cf-probe** (CF Server Monitor agent) together, built only by GitHub
 Actions and deployed to Cloady pinned by commit SHA.
 
-Status: deployed on Cloady (app `cloady-sing-box`, Japan JPN1). Config
-arrives as two panel variables (see "Environment variables"): the full
-sing-box JSON and the full probe config. Nothing secret lives in this
-repo or the image.
+Status: deployed on Cloady (app `web-01`, Japan JPN1). v3: the
+sing-box config is auto-generated once and kept in a volume, so the node
+needs no pasted sing-box config; node links are printed to the container
+logs on every start. The probe still needs `PROBE_CONFIG` once (it cannot
+be generated: it must match the monitor backend registration).
 
 ## What is in this repo
 
@@ -78,7 +79,21 @@ Secrets are NEVER written in this repo, in the image, or in chat logs.
 Set them in Cloady App Settings -> Environment (secret values are
 encrypted and hidden after saving).
 
-v2 takes exactly two configs. The old per-field variables (`VLESS_UUID`,
+v2 takes exactly two configs. v3 keeps them as bootstrap/override, but
+neither is required anymore:
+
+- sing-box: a saved `/data/sing-box.json` (volume) wins; else
+  `SING_BOX_CONFIG` is saved to the volume; else a fresh config is
+  auto-generated (UUIDs, password, WS path) and saved. Regeneration
+  happens only when the volume is empty, so links stay stable across
+  restarts. A corrupt saved config fails `sing-box check` on purpose
+  rather than silently regenerating over the links the user has.
+- probe: `PROBE_CONFIG` wins and is saved; else a saved
+  `/data/config.conf` is reused; else the probe stays disabled and
+  sing-box runs alone (warning logged). Set `PROBE_CONFIG` once and
+  redeploy to enable reporting later.
+
+The old per-field variables (`VLESS_UUID`,
 `WS_PATH`, `TUIC_UUID`, `TUIC_PASSWORD`, `SERVER_ID`, `SECRET`,
 `WORKER_URL`, `WS_PORT`, `TUIC_PORT`, `LOG_LEVEL`,
 `COLLECT_INTERVAL`, `REPORT_INTERVAL`, `CONNECTION_MODE`, `PING_MODE`)
@@ -86,11 +101,12 @@ are ignored by this version, so leaving them in the panel is harmless.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `SING_BOX_CONFIG` | Yes | Full sing-box `config.json` content (JSON, multi-line). Must listen on 8080 for VLESS+WS and 50000/udp for TUIC, and reference `/etc/sing-box/cert.pem` + `/etc/sing-box/key.pem` for TUIC TLS. |
-| `PROBE_CONFIG` | Yes | Full cf-probe `config.conf` content (`KEY="value"` lines, upstream container format). Must include `SERVER_ID`, `SECRET`, `WORKER_URL` (ending in `/update`) and `AUTO_UPDATE="0"`. |
+| `SING_BOX_CONFIG` | No | Full sing-box `config.json` content (JSON, multi-line). Bootstrap only: used when the volume has no saved config, then saved to the volume. Must listen on 8080 for VLESS+WS and 50000/udp for TUIC. |
+| `PROBE_CONFIG` | No | Full cf-probe `config.conf` content (`KEY="value"` lines, upstream container format). Must include `SERVER_ID`, `SECRET`, `WORKER_URL` (ending in `/update`) and `AUTO_UPDATE="0"`. If absent and nothing is saved, the probe stays disabled and sing-box runs alone. |
 | `SING_BOX_CONFIG_B64` | No | Base64 of the sing-box config. Fallback if the panel mangles multi-line values; wins over `SING_BOX_CONFIG` when both are set. |
 | `PROBE_CONFIG_B64` | No | Base64 of the probe config. Same fallback rule. |
-| `TUIC_CERT_B64` | No | Optional stable TUIC certificate (base64 PEM). If unset, a self-signed certificate is generated on every start. |
+| `APP_HOST` | No | Public hostname printed in the node links. If unset, links use a `HOST` placeholder: VLESS replace it with the panel https domain, TUIC replace it with the panel IPv6 address in brackets. |
+| `TUIC_CERT_B64` | No | Optional stable TUIC certificate (base64 PEM). If unset, a self-signed certificate is generated on first start and saved to the volume. |
 | `TUIC_KEY_B64` | No | Optional stable TUIC key (base64 PEM), paired with the above. |
 
 Value constraints: values inside `PROBE_CONFIG` must not contain a
@@ -132,8 +148,8 @@ with the panel values, keep ports and certificate paths as shown:
       "tls": {
         "enabled": true,
         "alpn": ["h3"],
-        "certificate_path": "/etc/sing-box/cert.pem",
-        "key_path": "/etc/sing-box/key.pem"
+        "certificate_path": "/data/cert.pem",
+        "key_path": "/data/key.pem"
       }
     }
   ],
