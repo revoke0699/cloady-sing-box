@@ -15,9 +15,13 @@
 #   2. "50000:50000/udp" -> second entry, raw UDP endpoint (TUIC).
 #                          No public IPv4; connect via the IPv6 address on the app page.
 #
-# No `environment:` section here on purpose: secrets are set in the Cloady
-# panel (App Settings -> Environment, marked secret) and are injected into
-# the container by Cloady. Never write a secret, UUID or password in this file.
+# `environment:` maps panel variables into the container explicitly.
+# Proven 2026-11-03: panel variables do NOT auto-inject into a compose
+# service container (app-level and creation-time SECRET alike left the
+# service Environment at 0 and the entrypoint saw no probe config across
+# multiple LIVE deploys). Only a ${VAR} mapping here carries a panel
+# variable into the container. Never write a secret, UUID or password
+# in this file, only the ${VAR} reference; the value stays in the panel.
 #
 # One volume on purpose: `appdata` mounted at /data holds the entrypoint's
 # persistent state (auto-generated sing-box config, TUIC certificate,
@@ -43,6 +47,8 @@
 services:
   web:
     image: ghcr.io/revoke0699/cloady-sing-box:sha-7f62b0bfcf5bf877c669edd265cd0ec0cda7a2e3
+    environment:
+      - PROBE_CONFIG=${PROBE_CONFIG}
     ports:
       - "8080:8080"
       - "50000:50000/udp"
