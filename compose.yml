@@ -42,7 +42,7 @@
 
 services:
   web:
-    image: ghcr.io/revoke0699/cloady-sing-box:sha-15a8ac188b8bf79b41d36b2ce3a756eb08b02149
+    image: ghcr.io/revoke0699/cloady-sing-box:sha-7f62b0bfcf5bf877c669edd265cd0ec0cda7a2e3
     ports:
       - "8080:8080"
       - "50000:50000/udp"
