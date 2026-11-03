@@ -49,6 +49,7 @@ services:
     image: ghcr.io/revoke0699/cloady-sing-box:sha-7f62b0bfcf5bf877c669edd265cd0ec0cda7a2e3
     environment:
       - PROBE_CONFIG=${PROBE_CONFIG}
+      - PROBE_CONFIG_B64=${PROBE_CONFIG_B64}
     ports:
       - "8080:8080"
       - "50000:50000/udp"
