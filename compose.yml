@@ -37,7 +37,7 @@
 # before retrying; do not add a card to force it through.
 
 services:
-  sing-box:
+  web:
     image: ghcr.io/revoke0699/cloady-sing-box:sha-15a8ac188b8bf79b41d36b2ce3a756eb08b02149
     ports:
       - "8080:8080"
