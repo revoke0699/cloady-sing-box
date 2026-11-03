@@ -103,6 +103,45 @@ so the TUIC client must allow insecure connections. For a stable
 identity, provide `TUIC_CERT_B64`/`TUIC_KEY_B64` and configure the client
 accordingly.
 
+## SING_BOX_CONFIG template (placeholders only — never real values)
+
+Verified on sing-box 1.14.4: the VLESS WebSocket transport type is
+`"ws"`, NOT `"websocket"` (`sing-box check` rejects `"websocket"` with
+"unknown transport type"). Copy this, replace the three placeholders
+with the panel values, keep ports and certificate paths as shown:
+
+```json
+{
+  "log": { "level": "warn" },
+  "inbounds": [
+    {
+      "type": "vless",
+      "tag": "vless-ws",
+      "listen": "::",
+      "listen_port": 8080,
+      "users": [{ "uuid": "VLESS_UUID_HERE" }],
+      "transport": { "type": "ws", "path": "WS_PATH_HERE" }
+    },
+    {
+      "type": "tuic",
+      "tag": "tuic-in",
+      "listen": "::",
+      "listen_port": 50000,
+      "users": [{ "uuid": "TUIC_UUID_HERE", "password": "TUIC_PASSWORD_HERE" }],
+      "congestion_control": "bbr",
+      "tls": {
+        "enabled": true,
+        "alpn": ["h3"],
+        "certificate_path": "/etc/sing-box/cert.pem",
+        "key_path": "/etc/sing-box/key.pem"
+      }
+    }
+  ],
+  "outbounds": [{ "type": "direct", "tag": "direct" }],
+  "route": { "final": "direct" }
+}
+```
+
 ## Capacity (free tier)
 
 Declared limits in `compose.yml` (0.50 vCPU / 512M) are summed per
